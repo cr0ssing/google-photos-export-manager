@@ -19,7 +19,7 @@
 import * as piexifts from 'piexif-ts';
 
 type InterimTags = {
-  [key in keyof typeof piexifts.TagValues]?: {[key: number]: string}
+  [key in keyof typeof piexifts.TagValues]?: { [key: number]: string };
 };
 
 const interimTags: InterimTags = {};
@@ -33,8 +33,8 @@ for (i in piexifts.TagValues) {
 }
 
 export type Tags = {
-  [key in keyof piexifts.IExif]: {[key: number]: string}
-}
+  [key in keyof piexifts.IExif]: { [key: number]: string };
+};
 
 export const tags: Tags = {
   '0th': interimTags.ImageIFD,
@@ -52,7 +52,7 @@ export function debugExif(exif: piexifts.IExif) {
   for (ifd in exif) {
     const root: piexifts.IExifElement = exif[ifd]!;
     if (ifd == 'thumbnail') {
-      const thumbnailData = root === null ? "null" : root;
+      const thumbnailData = root === null ? 'null' : root;
       //console.log(`- thumbnail: ${thumbnailData}`);
     } else {
       console.log(`- ${ifd}`);

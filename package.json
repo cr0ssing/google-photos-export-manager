@@ -1,7 +1,10 @@
 {
   "name": "google-photos-export-manager",
-  "version": "1.0.0",
-  "main": "index.ts",
+  "version": "1.1.0",
+  "main": "./src/index.ts",
+  "bin": {
+    "gpem": "./src/index.ts"
+  },
   "license": "GPL-3.0-or-later",
   "author": {
     "name": "Robin Lamberti",
@@ -12,11 +15,13 @@
     "exiftool-vendored": "^23.4.0",
     "ffmetadata": "^1.7.0",
     "moment": "^2.29.4",
-    "piexif-ts": "^2.0.16"
+    "piexif-ts": "^2.0.16",
+    "yargs": "^17.7.2"
   },
   "devDependencies": {
     "@types/cli-progress": "^3.11.4",
     "@types/node": "^20.8.0",
+    "@types/yargs": "^17.0.29",
     "typescript": "^5.2.2"
   }
 }

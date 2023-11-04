@@ -20,51 +20,105 @@ import fs from 'fs';
 import path from 'path';
 import util from 'util';
 import * as cliProgress from 'cli-progress';
-import { geoDataIsSet, addGPSDataToJpegFile } from './geoData';
-import { addGPSDataToMovie } from './geoData';
+import yargs from 'yargs/yargs';
+import { terminalWidth } from 'yargs';
+import { hideBin } from 'yargs/helpers';
+import {
+  geoDataIsSet,
+  addGPSDataToJpegFile,
+  addGPSDataToMovie,
+} from './geoData';
 
-const inputDir = 'TODO';
-const outputDir = 'TODO';
-const yearAlbumPrefix = 'Photos from';
-const ignoreAlbums: string[] = [];
-const editedSuffix = '-bearbeitet';
-const exportSubPath = ['Takeout', 'Google Fotos'];
-const metadataFileName = 'Metadaten.json';
-
-type AssetEntry = { 
-  metaPath?: string; 
-  assetInstances: AssetInstance[]; 
+type AssetEntry = {
+  metaPath?: string;
+  assetInstances: AssetInstance[];
 };
 
-type AssetInstance = { 
-  edited: boolean; 
-  path: string; 
-  album: string; 
+type AssetInstance = {
+  edited: boolean;
+  path: string;
+  album: string;
 };
 
-(async () => {
-  const albumPaths: Map<string, string[]> = getAlbumPaths();
-  const assets: Map<string, AssetEntry> = getAssets(albumPaths);
-  moveAssets(assets);
-})();
+const options = yargs(hideBin(process.argv))
+  .wrap(terminalWidth())
+  .usage('Usage: -i <input dir> -o <output dir>')
+  .option('i', {
+    alias: 'input',
+    describe: 'The directory containing the unzipped Google Photos archives',
+    type: 'string',
+    demandOption: true,
+  })
+  .option('o', {
+    alias: 'output',
+    describe: 'The directory create the new folder structure',
+    type: 'string',
+    demandOption: true,
+  })
+  .option('y', {
+    alias: 'yearAlbumPrefix',
+    describe:
+      'The prefix of the folders in the export containing photos of a certain year',
+    type: 'string',
+    default: 'Photos from',
+  })
+  .option('ia', {
+    alias: 'ignoreAlbums',
+    describe:
+      'Assets from that albums will be put in the folder for no album',
+    type: 'array',
+    default: [] as string[],
+  })
+  .option('e', {
+    alias: 'exportSubPath',
+    describe:
+      'The relative path that each export archive contain until the albums appear',
+    type: 'string',
+    default: 'Takeout' + path.sep + 'Google Fotos',
+    coerce: (input) =>
+      input.split(path.sep).map((p: string) => p.replace(path.sep, '')),
+  })
+  .option('ep', {
+    alias: 'editedPrefix',
+    describe: 'The suffix that photos that are edited have',
+    type: 'string',
+    default: '-bearbeitet',
+  })
+  .option('m', {
+    alias: 'metadataFileName',
+    describe: 'The name of the file containing metadata of an album',
+    type: 'string',
+    default: 'Metadaten.json',
+  })
+  .parseSync();
 
-export type GPSData = {
-  latitude: number,
-  longitude: number,
-  altitude: number
-};
+const {
+  i: inputDir,
+  o: outputDir,
+  y: yearAlbumPrefix,
+  ia: ignoreAlbums,
+  ep: editedSuffix,
+  e: exportSubPath,
+  m: metadataFileName,
+} = options;
+
+const albumPaths: Map<string, string[]> = getAlbumPaths();
+const assets: Map<string, AssetEntry> = getAssets(albumPaths);
+moveAssets(assets);
 
 function getAlbumPaths() {
   console.log('Collecting all albums...');
   const files = fs.readdirSync(inputDir);
   const paths = files
-    .map(name => path.join(inputDir, name, ...exportSubPath))
-    .map(folder => fs.readdirSync(folder).map(element => path.join(folder, element)))
+    .map((name) => path.join(inputDir, name, ...exportSubPath))
+    .map((folder) =>
+      fs.readdirSync(folder).map((element) => path.join(folder, element)),
+    )
     .flat()
-    .filter(subfolder => fs.lstatSync(subfolder).isDirectory());
+    .filter((subfolder) => fs.lstatSync(subfolder).isDirectory());
 
   const albumPaths: Map<string, string[]> = new Map();
-  paths.forEach(p => {
+  paths.forEach((p) => {
     const key = p.split(path.sep).reverse()[0];
     const value = albumPaths.has(key) ? albumPaths.get(key)! : [];
     value.push(p);
@@ -78,17 +132,26 @@ function getAssets(albumPaths: Map<string, string[]>) {
   let foundMeta = 0;
   let doubleMeta = 0;
   let editedCount = 0;
-  const assets: Map<string, { metaPath?: string; assetInstances: AssetInstance[]; }> = new Map();
+  const assets: Map<
+    string,
+    { metaPath?: string; assetInstances: AssetInstance[] }
+  > = new Map();
   Array.from(albumPaths.entries())
-    .sort((a, b) => b[0].indexOf(yearAlbumPrefix) - a[0].indexOf(yearAlbumPrefix))
+    .sort(
+      (a, b) => b[0].indexOf(yearAlbumPrefix) - a[0].indexOf(yearAlbumPrefix),
+    )
     .forEach(([k, v]) => {
       console.log(`Scraping ${k}...`);
-      const files = v.map(p => fs.readdirSync(p)
-        .filter(e => e !== metadataFileName)
-        .map(e => path.join(p, e)))
+      const files = v
+        .map((p) =>
+          fs
+            .readdirSync(p)
+            .filter((e) => e !== metadataFileName)
+            .map((e) => path.join(p, e)),
+        )
         .flat();
 
-      const extensions = new Set(files.map(f => f.split('.').reverse()[0]));
+      const extensions = new Set(files.map((f) => f.split('.').reverse()[0]));
 
       for (const p of files) {
         const fileName = p.split(path.sep).reverse()[0];
@@ -142,27 +205,37 @@ function getAssets(albumPaths: Map<string, string[]>) {
 function moveAssets(assets: Map<string, AssetEntry>) {
   const entries = Array.from(assets.entries());
   console.log(`Copying ${entries.length} assets...`);
-  const progressbar = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
+  const progressbar = new cliProgress.SingleBar(
+    {},
+    cliProgress.Presets.shades_classic,
+  );
   progressbar.start(entries.length, 0);
   const counter = {
-   noMeta: 0,
-   noAlbum : 0,
-   toManyAlbums : 0,
-   geoDataSet : 0,
-   writingExifError : 0
+    noMeta: 0,
+    noAlbum: 0,
+    toManyAlbums: 0,
+    geoDataSet: 0,
+    writingExifError: 0,
   };
   entries.forEach(([key, { metaPath, assetInstances: instances }]) => {
-    let allAlbums = instances.filter(e => !ignoreAlbums.includes(e.album));
-    const hasEdited = allAlbums.some(i => i.edited);
+    let allAlbums = instances.filter((e) => !ignoreAlbums.includes(e.album));
+    const hasEdited = allAlbums.some((i) => i.edited);
     if (hasEdited) {
-      allAlbums = allAlbums.filter(i => i.edited);
+      allAlbums = allAlbums.filter((i) => i.edited);
     }
     const firstAlbum = allAlbums.reverse()[0];
 
     let suitable = true;
     if (metaPath === undefined) {
       counter.noMeta++;
-      console.log('No meta: ', util.inspect(instances, { showHidden: false, depth: null, colors: true }));
+      console.log(
+        'No meta: ',
+        util.inspect(instances, {
+          showHidden: false,
+          depth: null,
+          colors: true,
+        }),
+      );
       suitable = false;
     }
     if (firstAlbum === undefined) {
@@ -172,7 +245,10 @@ function moveAssets(assets: Map<string, AssetEntry>) {
     }
     if (allAlbums.length > 2) {
       counter.toManyAlbums++;
-      console.log(`${key} is in ${allAlbums.length} albums: `, allAlbums.map(i => ({ album: i.album, path: i.path })));
+      console.log(
+        `${key} is in ${allAlbums.length} albums: `,
+        allAlbums.map((i) => ({ album: i.album, path: i.path })),
+      );
       console.log(`Meta: ${metaPath}`);
       suitable = false;
     }
@@ -189,7 +265,12 @@ function moveAssets(assets: Map<string, AssetEntry>) {
   console.log(`${counter.toManyAlbums} have to many albums.`);
 }
 
-function moveAsset(firstAlbum: AssetInstance, metaPath: string, counter: { geoDataSet: number; writingExifError: number; }, key: string) {
+function moveAsset(
+  firstAlbum: AssetInstance,
+  metaPath: string,
+  counter: { geoDataSet: number; writingExifError: number },
+  key: string,
+) {
   let p = outputDir;
   if (!firstAlbum.album.startsWith(yearAlbumPrefix)) {
     p = path.join(p, 'Album', firstAlbum.album);
@@ -214,16 +295,23 @@ function moveAsset(firstAlbum: AssetInstance, metaPath: string, counter: { geoDa
         let fileBuffer = Buffer.from(newBinary, 'binary');
         fs.writeFileSync(p, fileBuffer);
       } catch (e) {
-        console.error(`Writing file ${firstAlbum.path} failed\nMeta: ${metaPath}`);
+        console.error(
+          `Writing file ${firstAlbum.path} failed\nMeta: ${metaPath}`,
+        );
         counter.writingExifError++;
         fs.copyFileSync(firstAlbum.path, p);
       }
     } else {
       fs.copyFileSync(firstAlbum.path, p);
-      if (extension.toLowerCase() === '.mp4' || extension.toLowerCase() === '.mov') {
+      if (
+        extension.toLowerCase() === '.mp4' ||
+        extension.toLowerCase() === '.mov'
+      ) {
         addGPSDataToMovie(p, meta.geoData);
       } else {
-        console.log(`Skipping adding gps data for ${key}, because extension is ${extension}`);
+        console.log(
+          `Skipping adding gps data for ${key}, because extension is ${extension}`,
+        );
       }
     }
   } else {
@@ -232,9 +320,17 @@ function moveAsset(firstAlbum: AssetInstance, metaPath: string, counter: { geoDa
 }
 
 function editDates(assets: Map<string, AssetEntry>) {
-  const toEdit: { [key: string]: string[] } = JSON.parse(fs.readFileSync('./toEdit.json').toString());
-  const toEditFiles = Object.keys(toEdit).map(key => (toEdit[key as keyof typeof toEdit].map(file => ({ date: key, file })))).flat();
-  const extensions = new Set(toEditFiles.map(({ file }) => file).map(f => f.split('.').reverse()[0]));
+  const toEdit: { [key: string]: string[] } = JSON.parse(
+    fs.readFileSync('./toEdit.json').toString(),
+  );
+  const toEditFiles = Object.keys(toEdit)
+    .map((key) =>
+      toEdit[key as keyof typeof toEdit].map((file) => ({ date: key, file })),
+    )
+    .flat();
+  const extensions = new Set(
+    toEditFiles.map(({ file }) => file).map((f) => f.split('.').reverse()[0]),
+  );
   const output = toEditFiles.map(({ file, date }) => {
     let key = file;
     for (const ex of Array.from(extensions)) {

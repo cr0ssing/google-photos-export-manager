@@ -23,7 +23,12 @@ import * as moment from 'moment';
 import { ExifDateTime, Tags, exiftool } from 'exiftool-vendored';
 import { firstDateTime } from 'exiftool-vendored/dist/FirstDateTime';
 
-type FileInfo = { file: string, date: string, photoTakenTime: number, creationTime: number };
+type FileInfo = {
+  file: string;
+  date: string;
+  photoTakenTime: number;
+  creationTime: number;
+};
 
 (async () => {
   const files: FileInfo[] = JSON.parse(fs.readFileSync('edit.json').toString());
@@ -34,7 +39,6 @@ type FileInfo = { file: string, date: string, photoTakenTime: number, creationTi
       const ext = path.extname(file).toLowerCase();
       switch (ext) {
         case '.gif':
-
           break;
         case '.jpg':
         case '.jpeg':
@@ -48,23 +52,35 @@ type FileInfo = { file: string, date: string, photoTakenTime: number, creationTi
     } catch (e) {
       console.error(e);
     }
-  };
+  }
 })();
 
-async function addExifWithExiftool(photoTakenTime: number, creationTime: number, p: string) {
+async function addExifWithExiftool(
+  photoTakenTime: number,
+  creationTime: number,
+  p: string,
+) {
   // format seen here: https://www.awaresystems.be/imaging/tiff/tifftags/privateifd/exif/datetimeoriginal.html
-  const timestamp = moment.unix(photoTakenTime || creationTime).format('YYYY-MM-DDThh:mm:ss');
+  const timestamp = moment
+    .unix(photoTakenTime || creationTime)
+    .format('YYYY-MM-DDThh:mm:ss');
   await exiftool.write(p, { AllDates: timestamp }, []);
 }
 
-function addDateToExif(p: string, creationTime: number, photoTakenTime: number) {
+function addDateToExif(
+  p: string,
+  creationTime: number,
+  photoTakenTime: number,
+) {
   const imageBinary = fs.readFileSync(p).toString('binary');
   const exif = piexifts.load(imageBinary);
   if (exif.Exif === undefined) {
     exif.Exif = {};
   }
-  exif.Exif[piexifts.TagValues.ExifIFD.DateTimeOriginal] = formatDate(photoTakenTime);
-  exif.Exif[piexifts.TagValues.ExifIFD.DateTimeDigitized] = formatDate(creationTime);
+  exif.Exif[piexifts.TagValues.ExifIFD.DateTimeOriginal] =
+    formatDate(photoTakenTime);
+  exif.Exif[piexifts.TagValues.ExifIFD.DateTimeDigitized] =
+    formatDate(creationTime);
 
   const exifBinary = piexifts.dump(exif);
   const newBinary = piexifts.insert(exifBinary, imageBinary);
@@ -77,10 +93,11 @@ function formatDate(timestamp: number) {
   return m.format('YYYY:MM:DD HH:MM:SS');
 }
 
-const exifDate = (dt: ExifDateTime | string | undefined) => (dt instanceof ExifDateTime ? dt?.toDate() : null);
+const exifDate = (dt: ExifDateTime | string | undefined) =>
+  dt instanceof ExifDateTime ? dt?.toDate() : null;
 
 export function readDate(p: string) {
-  exiftool.read(p).then(tags => {
+  exiftool.read(p).then((tags) => {
     const date = exifDate(
       firstDateTime(tags as Tags, [
         'SubSecDateTimeOriginal',
