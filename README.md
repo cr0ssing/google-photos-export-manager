@@ -1,0 +1,1 @@
+A tool to manage the files retrieved from exports from google photos to use them on your local disk or importing them into another tool, e.g. immich.
